@@ -11,9 +11,10 @@ static void tratador_alarme(int s)
 
 int main()
 {
+  // Se estas linhas forem comentadas, o programa não saberá tratar o sinal de alarme,
+  // pois não estava esperando por ele, fazendo o programa parar em um "Alarm clock"
   struct sigaction sa;
   sa.sa_handler = tratador_alarme;
-
   sigemptyset(&sa.sa_mask);
   sigaction(SIGALRM, &sa, NULL);
 
