@@ -28,7 +28,9 @@ int main()
   {
     printf("Ola novamente (%d)\n", ++i);
     printf("Digite s para sair: ");
-    scanf(" %c", &sair);
+    // scanf(" %c", &sair);
+    // O sinal atrapalha o scanf fazendo pular a leitura, é preciso garantir que um char seja lido
+    while(scanf(" %c", &sair) != 1);
     printf("Voce digitou <%c>\n", sair);
   } while (sair != 's');
 }
