@@ -4,23 +4,45 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 const int N = 64; // Tamanho máximo para o nome do binário
 
-// Variável global para comunicação entre o tratador do alarme e o main
-volatile sig_atomic_t timeout_occurred = 0;
-pid_t pid_filho = 0; // PID do filho para que o tratador possa matá-lo
+// Variável global para comunicação entre a thread de timeout e o main
+pthread_mutex_t mutex;
+pthread_cond_t cond;
 
-// Tratador do sinal SIGALRM (disparado pelo alarme)
-void tratador_alarme(int sig)
+volatile int timeout_occurred = 0; // indica que o tempo acabou
+pid_t pid_filho = 0; // PID do filho para que a thread possa matá-lo
+
+// Estrutura para passar o timeout à thread de monitoramento
+struct timeout_info
 {
+    unsigned int segundos;
+};
+
+// Função executada pela thread de monitoramento
+void *thread_timeout(void *arg)
+{
+    struct timeout_info *info = (struct timeout_info *)arg;
+    unsigned int seg = info->segundos;
+
+    // Dorme pelo tempo do timeout
+    sleep(seg);
+
+    // Ao acordar, sinaliza timeout à thread principal
+    pthread_mutex_lock(&mutex);
     timeout_occurred = 1;
-    
+    pthread_cond_signal(&cond);
+    pthread_mutex_unlock(&mutex);
+
+    // Mata o processo filho imediatamente
     if (pid_filho > 0)
     {
-        // Mata o processo filho imediatamente
         kill(pid_filho, SIGKILL);
     }
+
+    pthread_exit(0);
 }
 
 int main(int argc, char *argv[])
@@ -68,42 +90,107 @@ int main(int argc, char *argv[])
     else // Processo pai (FMS)
     {
         printf("FMS >> processo filho criado com PID %d\n", pid);
-        pid_filho = pid; // Guarda PID do filho para uso no tratador
+        pid_filho = pid; // Guarda PID do filho para uso na thread
 
-        // Configura o tratador para SIGALRM
-        struct sigaction sa;
-        sa.sa_handler = tratador_alarme;
-        sigemptyset(&sa.sa_mask);
-        sigaction(SIGALRM, &sa, NULL);
-
-        // Programa o alarme se timeout > 0
         if (timeout > 0)
         {
-            alarm(timeout);
-        }
+            // Com timeout usa thread e mutex/cond para monitorar o processo filho e o tempo
+            pthread_t tid;
+            struct timeout_info tinfo;
+            tinfo.segundos = timeout;
 
-        int status;
-        waitpid(pid, &status, 0); // Aguarda o término do processo filho
+            // Inicializa mutex e condição
+            pthread_mutex_init(&mutex, NULL);
+            pthread_cond_init(&cond, NULL);
 
-        // Desliga o alarme caso o filho tenha terminado antes
-        alarm(0);
+            // Cria a thread de monitoramento
+            pthread_create(&tid, NULL, thread_timeout, (void *)&tinfo);
 
-        // Relata o que aconteceu
-        if (timeout_occurred) // O filho foi morto por timeout
-        {
-            printf("FMS >> TEMPO ESGOTADO! Processo filho %d foi morto.\n", pid);
+            // Thread principal: espera até que o filho termine ou timeout ocorra
+            int status;
+            int filho_terminou = 0;
+
+            while (1)
+            {
+                // Verifica se o filho terminou
+                int w = waitpid(pid, &status, WNOHANG);
+                if (w == pid)
+                {
+                    filho_terminou = 1;
+                    break;
+                }
+
+                // Bloqueia no mutex e verifica timeout
+                pthread_mutex_lock(&mutex);
+
+                if (timeout_occurred)
+                {
+                    pthread_mutex_unlock(&mutex);
+                    break;
+                }
+
+                // Aguarda um sinal (timeout) ou um breve período para evitar busy wait
+                // Usamos tempo limite curto para poder reavaliar waitpid
+                struct timespec ts;
+
+                clock_gettime(CLOCK_REALTIME, &ts);
+
+                ts.tv_nsec += 100000000; // 100 ms
+
+                if (ts.tv_nsec >= 1000000000)
+                {
+                    ts.tv_nsec -= 1000000000;
+                    ts.tv_sec += 1;
+                }
+
+                pthread_cond_timedwait(&cond, &mutex, &ts);
+
+                pthread_mutex_unlock(&mutex);
+            }
+
+            // Se o filho ainda estiver rodando (timeout ocorreu) encerra
+            if (timeout_occurred && !filho_terminou)
+            {
+                kill(pid, SIGKILL);
+
+                waitpid(pid, &status, 0); // recolhe o status
+
+                printf("FMS >> TEMPO ESGOTADO! Processo filho %d foi morto.\n", pid);
+            }
+            else
+            {
+                // Cancela a thread de timeout caso o filho tenha terminado antes
+                pthread_cancel(tid);
+
+                // Espera a thread encerrar
+                pthread_join(tid, NULL);
+
+                // Relata o que aconteceu
+                if (WIFEXITED(status))
+                    printf("FMS >> processo filho %d finalizou normalmente com código %d.\n", pid, WEXITSTATUS(status));
+                else if (WIFSIGNALED(status))
+                    printf("FMS >> processo filho %d terminou pelo sinal %d.\n", pid, WTERMSIG(status));
+                else
+                    printf("FMS >> processo filho %d terminou de forma desconhecida.\n", pid);
+            }
+
+            pthread_mutex_destroy(&mutex);
+            pthread_cond_destroy(&cond);
         }
-        else if (WIFEXITED(status)) // O filho terminou normalmente
+        else
         {
-            printf("FMS >> processo filho %d finalizou normalmente com código %d.\n", pid, WEXITSTATUS(status));
-        }
-        else if (WIFSIGNALED(status)) // O filho foi morto por um sinal (mas não necessariamente o alarme)
-        {
-            printf("FMS >> processo filho %d terminou pelo sinal %d.\n", pid, WTERMSIG(status));
-        }
-        else // Outro tipo de término
-        {
-            printf("FMS >> processo filho %d terminou de forma desconhecida.\n", pid);
+            // Sem timeout: espera simples
+            int status;
+
+            waitpid(pid, &status, 0); // Aguarda o término do processo filho
+
+            // Relata o que aconteceu
+            if (WIFEXITED(status))
+                printf("FMS >> processo filho %d finalizou normalmente com código %d.\n", pid, WEXITSTATUS(status));
+            else if (WIFSIGNALED(status))
+                printf("FMS >> processo filho %d terminou pelo sinal %d.\n", pid, WTERMSIG(status));
+            else
+                printf("FMS >> processo filho %d terminou de forma desconhecida.\n", pid);
         }
     }
 
