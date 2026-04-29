@@ -69,7 +69,7 @@ double get_process_cpu(pid_t pid)
 
     // Lê os campos necessários do arquivo stat
     fscanf(fp,
-           "%d %s %c %ld %ld %ld %ld %ld %lu %lu %lu %lu %lu %lu %ld %ld",
+           "%d %s %c %ld %ld %ld %ld %ld %lu %lu %lu %lu %lu %lu %ld",
            &pid_read,
            comm,
            &state,
