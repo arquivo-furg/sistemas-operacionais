@@ -1,3 +1,6 @@
+// Alex Sander Condines dos Santos - 169622
+// Pedro Garcia Machado - 169591
+
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -251,11 +254,12 @@ int main(int argc, char *argv[])
             break;
 
         // Quota de CPU deste binário
-        double quota_binario = quota_cpu_total;
+        double quota_binario;
+        printf("FMS >> Quota de CPU para este binario (segundos): ");
+        scanf("%lf", &quota_binario);
 
         // Timeout
         unsigned int timeout;
-
         printf("FMS >> Timeout para este binario (0 = sem timeout): ");
         scanf("%u", &timeout);
 
