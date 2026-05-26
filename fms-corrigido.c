@@ -11,7 +11,8 @@
 #include <pthread.h>
 #include <time.h>
 
-const int N = 64; // Tamanho máximo para o nome do binário
+// FIX: Aumento do tamanho máximo para o nome do binário
+const int N = 256; // Tamanho máximo para o nome do binário
 const int MONITOR_INTERVAL = 1; // Intervalo do monitoramento em segundos
 
 // Variáveis globais para comunicação entre a thread e o main
@@ -221,7 +222,8 @@ void *thread_monitor(void *arg)
     pthread_exit(0);
 }
 
-int main(int argc, char *argv[])
+// FIX: Remoção do argumento argc e argv do main, para serem usados nos processos filhos
+int main()
 {
     // Quotas globais válidas para toda a sessão do FMS
     double quota_cpu_total;
@@ -246,8 +248,9 @@ int main(int argc, char *argv[])
         // Solicita o nome do binário
         char nome[N];
 
-        printf("\nFMS >> Introduza o caminho do binario a executar (ou 'sair'): ");
-        scanf("%63s", nome);
+        printf("\nFMS >> Introduza o caminho do binario a executar e argumentos (ou 'sair'): ");
+        fgets(nome, sizeof(nome), stdin); // FIX: lê o binário e os parâmetros como uma linha completa
+        nome[strcspn(nome, "\n")] = 0; // remove o caractere de nova linha e troca por nul terminator
 
         // Encerra o FMS caso o usuário digite "sair"
         if (strcmp(nome, "sair") == 0)
@@ -280,6 +283,7 @@ int main(int argc, char *argv[])
 
             // Substitui a imagem do processo pelo binário solicitado
             // O argv[0] é o nome do FMS, o binário receberá os mesmos argumentos
+            // FIX: faltou essa parte..
             execve(nome, argv, 0);
 
             // Se execve retornar, houve erro
