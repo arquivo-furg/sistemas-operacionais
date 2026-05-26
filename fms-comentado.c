@@ -1,56 +1,58 @@
 // Alex Sander Condines dos Santos - 169622
 // Pedro Garcia Machado - 169591
 
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/wait.h>
-#include <sys/resource.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <time.h>
+#include <stdio.h> // input e iutput -> fopen, fscanf, printf
+#include <unistd.h> // acesso a APIs linux -> fork, pipe
+#include <string.h> // manipulação de strings -> strcmp
+#include <sys/wait.h> // wait, waitpid
+#include <sys/resource.h> // struct uso
+#include <signal.h> // lançamento de sinais -> SIGKILL
+#include <stdlib.h> // não foi necessária
+#include <pthread.h> // mutex, pthread
+#include <time.h> // funções pra relógio
 
-const int N = 64; // Tamanho máximo para o nome do binário
+const int N = 64; // Tamanho máximo para o nome do binário (caminho + nome)
 const int MONITOR_INTERVAL = 1; // Intervalo do monitoramento em segundos
 
 // Variáveis globais para comunicação entre a thread e o main
-pthread_mutex_t mutex;
-pthread_cond_t cond;
+pthread_mutex_t mutex; // mutex para proteger região crítica
+pthread_cond_t cond; // flag para avisar thread que processo foi finalizado
 
 // Motivos para encerramento do processo filho
-#define STOP_NONE 0
-#define STOP_TIMEOUT 1
-#define STOP_CPU_LIMIT 2
-#define STOP_MEM_LIMIT 3
-#define STOP_CHILD_EXIT 4
+#define STOP_NONE 0 // processso terminou normalmente
+#define STOP_TIMEOUT 1 // processo morto por timeout
+#define STOP_CPU_LIMIT 2 // processo excedeu a quota de CPU
+#define STOP_MEM_LIMIT 3 // proesso excedeu o limite de memória
+#define STOP_CHILD_EXIT 4 // processo filho terminou
 
-volatile int monitor_stop = STOP_NONE;
+volatile int monitor_stop = STOP_NONE; // motivo que parou o processo - volatile garante a mudança para todas threads
 pid_t pid_filho = 0; // PID do filho para que a thread possa matá-lo
 
 // Estrutura para passar informações à thread
 struct monitor_info
 {
-    unsigned int timeout;
-    double quota_cpu;
-    long limite_mem;
+    unsigned int timeout; // timeout em segundos
+    double quota_cpu; // quota de CPU em segundos
+    long limite_mem; // limite de memória em KB
 };
 
-// Lê o consumo de CPU do processo a partir de /proc/[pid]/stat
+// Lê o consumo de CPU do processo a partir de /proc/[pid]/stat -> arquivo de estatísticas do processo
 double get_process_cpu(pid_t pid)
 {
-    char caminho[64];
+    char caminho[64]; // caminho para o arquivo stat do processo
 
-    snprintf(caminho, sizeof(caminho), "/proc/%d/stat", pid);
+    snprintf(caminho, sizeof(caminho), "/proc/%d/stat", pid); // constrói o caminho para o arquivo stat do processo usando o PID
 
-    FILE *fp = fopen(caminho, "r");
+    FILE *fp = fopen(caminho, "r"); // abre o arquivo para leitura
 
     if (!fp)
-        return -1.0;
+        return -1.0; // retorna -1 em caso de erro ao abrir o arquivo
 
-    long utime = 0;
-    long stime = 0;
+    long utime = 0; // tempo de CPU do usuário
+    long stime = 0; // tempo de CPU do sistema
 
+
+    // Flags do stat lidas para avançar o cursor e chegar em utime e stime
     int pid_read;
     char comm[256];
     char state;
@@ -85,17 +87,18 @@ double get_process_cpu(pid_t pid)
            &cmajflt,
            &utime,
            &stime);
+    // Precisa apenas do utime e stime, corre o cursor e descarta os outros campos
 
     fclose(fp);
 
     // Obtém quantos ticks existem por segundo
-    long ticks_per_sec = sysconf(_SC_CLK_TCK);
+    long ticks_per_sec = sysconf(_SC_CLK_TCK); // ticks do sistema por segundo
 
-    if (ticks_per_sec <= 0)
+    if (ticks_per_sec <= 0) // fallback
         ticks_per_sec = 100;
 
     // Retorna CPU total em segundos
-    return (double)(utime + stime) / ticks_per_sec;
+    return (double)(utime + stime) / ticks_per_sec; // converte o uso da CPU em ticks para segundos no relógio
 }
 
 // Lê o consumo de memória do processo a partir de /proc/[pid]/status
@@ -113,8 +116,8 @@ long get_process_mem(pid_t pid)
     char linha[256];
     long vmrss = -1;
 
-    // Procura pela linha VmRSS
-    while (fgets(linha, sizeof(linha), fp) != NULL)
+    // Procura pela linha VmRSS -> memória residente do processo, memória usada pelo processo
+    while (fgets(linha, sizeof(linha), fp) != NULL) // lê o arquivo linha por linha procurando a linha que começa com "VmRSS"
     {
         if (sscanf(linha, "VmRSS: %ld", &vmrss) == 1)
             break;
@@ -128,20 +131,21 @@ long get_process_mem(pid_t pid)
 // Thread responsável pelo monitoramento
 void *thread_monitor(void *arg)
 {
-    struct monitor_info *info = (struct monitor_info *)arg;
+    struct monitor_info *info = (struct monitor_info *)arg; // converte o argumento para a estrutura de informações
 
+    // aponta os atributos da estrutural para variáveis locais, mantendo a referência
     unsigned int timeout = info->timeout;
     double quota_cpu = info->quota_cpu;
     long limite_mem = info->limite_mem;
 
-    time_t start_time = time(NULL);
+    time_t start_time = time(NULL); // controle do timeout
 
     while (1)
     {
         // Espera 1 segundo entre cada monitoramento
         sleep(MONITOR_INTERVAL);
 
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(&mutex); // entra na região crítica para acessar as variáveis globais
 
         // Encerra se o processo já terminou
         if (monitor_stop != STOP_NONE)
@@ -163,9 +167,9 @@ void *thread_monitor(void *arg)
                 if (pid_filho > 0)
                     kill(pid_filho, SIGKILL);
 
-                pthread_cond_signal(&cond);
+                pthread_cond_signal(&cond); // avisa a thread principal que o processo foi morto por timeout
 
-                pthread_mutex_unlock(&mutex);
+                pthread_mutex_unlock(&mutex); // sai da região crítica
 
                 break;
             }
@@ -247,7 +251,7 @@ int main(int argc, char *argv[])
         char nome[N];
 
         printf("\nFMS >> Introduza o caminho do binario a executar (ou 'sair'): ");
-        scanf("%63s", nome);
+        scanf("%63s", nome); // lê o nome do binário, limitando a 63 caracteres para colocar /0 no final
 
         // Encerra o FMS caso o usuário digite "sair"
         if (strcmp(nome, "sair") == 0)
@@ -256,12 +260,12 @@ int main(int argc, char *argv[])
         // Quota de CPU deste binário
         double quota_binario;
         printf("FMS >> Quota de CPU para este binario (segundos): ");
-        scanf("%lf", &quota_binario);
+        scanf("%lf", &quota_binario); // lê a quota de CPU para este binário -> lf para double
 
         // Timeout
-        unsigned int timeout;
+        unsigned int timeout; // unsigned int para timeout, já que não tem tempo negativo
         printf("FMS >> Timeout para este binario (0 = sem timeout): ");
-        scanf("%u", &timeout);
+        scanf("%u", &timeout); // lê o timeout para este binário -> u para unsigned int
 
         // Criação do processo filho
         int pid = fork();
@@ -316,13 +320,14 @@ int main(int argc, char *argv[])
             // Reinicia o estado do monitor
             monitor_stop = STOP_NONE;
 
-            // Cria a thread de monitoramento
+            // Cria a thread de monitoramento, passando a minfo como argumento da função thread_monitor
             pthread_create(&tid, NULL, thread_monitor, (void *)&minfo);
 
             // Espera até que o filho termine ou algum limite seja atingido
             while (1)
             {
                 // Verifica se o filho terminou
+                // wait4 com WNOHANG retorna imediatamente se o filho não terminou, retornando 0. Se o filho terminou, retorna o PID do filho.
                 int w = wait4(pid, &status, WNOHANG, &uso);
 
                 if (w == pid)
@@ -350,20 +355,20 @@ int main(int argc, char *argv[])
                     break;
                 }
 
-                // Aguarda um curto período para evitar busy wait
+                // Aguarda um curto período para evitar busy wait -> não verificar desnecessariamente
                 struct timespec ts;
 
-                clock_gettime(CLOCK_REALTIME, &ts);
+                clock_gettime(CLOCK_REALTIME, &ts); // obtém o tempo atual para calcular o tempo de espera
 
-                ts.tv_nsec += 100000000;
+                ts.tv_nsec += 100000000; // espera 100ms
 
-                if (ts.tv_nsec >= 1000000000)
+                if (ts.tv_nsec >= 1000000000) // ajusta os segundos caso os nanosegundos ultrapassem 1 segundo
                 {
                     ts.tv_nsec -= 1000000000;
                     ts.tv_sec += 1;
                 }
 
-                pthread_cond_timedwait(&cond, &mutex, &ts);
+                pthread_cond_timedwait(&cond, &mutex, &ts); // espera até que a thread sinalize ou o tempo de espera acabe
 
                 pthread_mutex_unlock(&mutex);
             }
