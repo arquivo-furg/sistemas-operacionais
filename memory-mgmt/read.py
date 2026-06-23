@@ -1,9 +1,27 @@
-#!/usr/bin/env python3
-
 import sys
 import io
 import time
 import zstandard as zstd
+
+unidades = {"B": 0, "KB": 1, "MB": 2, "GB": 3}
+
+
+def get_tamanho_bytes(message):
+    while True:
+        print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
+        try:
+            tamanho, unidade = input(message).split(" ")
+            potencia = unidades.get(unidade.upper(), -1)
+
+            if potencia == -1:
+                raise ValueError
+
+            tamanho_bytes = int(tamanho) * 1024**potencia
+            return tamanho_bytes
+        except KeyboardInterrupt:
+            sys.exit(2)
+        except:
+            print("Informe o valor conforme o formato especificado.")
 
 
 def main():
@@ -12,6 +30,10 @@ def main():
         sys.exit(1)
 
     arquivo = sys.argv[1]
+    tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
+    tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
+
+    print(tam_memoria, tam_pagina)
 
     inicio = time.perf_counter()
 
