@@ -8,7 +8,6 @@ unidades = {"B": 0, "KB": 1, "MB": 2, "GB": 3}
 
 def get_tamanho_bytes(message):
     while True:
-        print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
         try:
             tamanho, unidade = input(message).split(" ")
             potencia = unidades.get(unidade.upper(), -1)
@@ -25,11 +24,15 @@ def get_tamanho_bytes(message):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print(f"Uso: {sys.argv[0]} arquivo.zst")
-        sys.exit(1)
+    # TODO: Remove hardcoded example file path
 
-    arquivo = sys.argv[1]
+    # if len(sys.argv) != 2:
+    #     print(f"Uso: {sys.argv[0]} arquivo.zst")
+    #     sys.exit(1)
+
+    arquivo = "data/acessos-Demo0.txt.zst"  # sys.argv[1]
+
+    print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
     tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
     tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
 
