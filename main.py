@@ -31,6 +31,44 @@ def get_tamanho_bytes(message):
             print("Informe o valor conforme o formato especificado.")
 
 
+def print_results(arquivo, total_linhas, unicas, tempo):
+    print(f"Arquivo            : {arquivo}")
+    print(f"Total de linhas    : {total_linhas}")
+    print(f"Linhas únicas      : {len(unicas)}")
+    print(f"Tempo              : {tempo:.2f} s")
+
+    if tempo > 0:
+        print(f"Taxa               : " f"{total_linhas/tempo:,.0f} linhas/s")
+
+
+def FIFO(endereco):
+    print(endereco)
+
+
+def run_perf_test(arquivo, tam_memoria, tam_pagina, algoritmo):
+    inicio = time.perf_counter()
+    total_linhas = 0
+    unicas = {}
+
+    with open(arquivo, "rb") as fh:
+        dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
+        with dctx.stream_reader(fh) as reader:
+            text_stream = io.TextIOWrapper(reader, encoding="utf-8")
+            for linha in text_stream:
+                # Convete a linha de endereço hexadecimal para os bytes correspondentes
+                endereco = int(linha.strip(), 16)
+
+                # Chama o algoritmo de substituição de página com o endereço convertido
+                algoritmo(endereco)
+
+                total_linhas += 1
+                unicas[linha] = unicas.get(linha, 0) + 1
+
+    fim = time.perf_counter()
+    tempo = fim - inicio
+    print_results(arquivo, total_linhas, unicas, tempo)
+
+
 def main():
     # TODO: Remove hardcoded example file path
 
@@ -51,37 +89,7 @@ def main():
         print("O tamanho da página deve ser menor ou igual ao tamanho da memória.")
         tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
 
-    print(tam_memoria, tam_pagina)
-
-    inicio = time.perf_counter()
-
-    total_linhas = 0
-    unicas = {}
-
-    with open(arquivo, "rb") as fh:
-        dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
-
-        with dctx.stream_reader(fh) as reader:
-            text_stream = io.TextIOWrapper(reader, encoding="utf-8")
-
-            for linha in text_stream:
-                linha = linha.strip()
-
-                total_linhas += 1
-
-                unicas[linha] = unicas.get(linha, 0) + 1
-
-    fim = time.perf_counter()
-
-    tempo = fim - inicio
-
-    print(f"Arquivo            : {arquivo}")
-    print(f"Total de linhas    : {total_linhas}")
-    print(f"Linhas únicas      : {len(unicas)}")
-    print(f"Tempo              : {tempo:.2f} s")
-
-    if tempo > 0:
-        print(f"Taxa               : " f"{total_linhas/tempo:,.0f} linhas/s")
+    run_perf_test(arquivo, tam_memoria, tam_pagina, FIFO)
 
 
 if __name__ == "__main__":
