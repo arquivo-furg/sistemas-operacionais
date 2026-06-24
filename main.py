@@ -35,6 +35,9 @@ def main():
     print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
     tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
     tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
+    while tam_pagina > tam_memoria:
+        print("O tamanho da página deve ser menor ou igual ao tamanho da memória.")
+        tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
 
     print(tam_memoria, tam_pagina)
 
