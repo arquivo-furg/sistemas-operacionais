@@ -9,17 +9,25 @@ unidades = {"B": 0, "KB": 1, "MB": 2, "GB": 3}
 def get_tamanho_bytes(message):
     while True:
         try:
+            # Obtém o tamanho e a unidade do usuário, separados por espaço
             tamanho, unidade = input(message).split(" ")
+
+            # Busca a potência correspondente à unidade fornecida pelo usuário
             potencia = unidades.get(unidade.upper(), -1)
 
+            # Se a unidade não for válida, raise ValueError
             if potencia == -1:
                 raise ValueError
 
+            # Converte o tamanho para bytes usando a potência correspondente
             tamanho_bytes = int(tamanho) * 1024**potencia
+
             return tamanho_bytes
         except KeyboardInterrupt:
+            # Interrompe o programa se o usuário pressionar Ctrl+C
             sys.exit(2)
         except:
+            # Trata qualquer outro erro (como ValueError) e solicita novamente a entrada do usuário
             print("Informe o valor conforme o formato especificado.")
 
 
@@ -33,8 +41,12 @@ def main():
     arquivo = "data/acessos-Demo0.txt.zst"  # sys.argv[1]
 
     print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
+
+    # Solicita ao usuário o tamanho da memória e da página e converte para bytes
     tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
     tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
+
+    # Garante que o tamanho da página seja menos ou igual ao tamanho da mem´roia
     while tam_pagina > tam_memoria:
         print("O tamanho da página deve ser menor ou igual ao tamanho da memória.")
         tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
