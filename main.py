@@ -31,24 +31,46 @@ def get_tamanho_bytes(message):
             print("Informe o valor conforme o formato especificado.")
 
 
-def print_results(arquivo, total_linhas, unicas, tempo):
+def FIFO(endereco, tam_pagina, paginas, num_paginas, faltas):
+    # Calcula o número da página a partir do endereço
+    num_pagina = endereco // tam_pagina
+
+    # Se a página já estiver na memória, não faz nada
+    if num_pagina in paginas:
+        return faltas
+
+    # Se a memória estiver cheia, remove a página mais antiga (FIFO)
+    if len(paginas) >= num_paginas:
+        paginas.pop(0)
+
+    # Adiciona a nova página à memória
+    paginas.append(num_pagina)
+
+    faltas += 1
+    return faltas
+
+
+def print_results(arquivo, total_linhas, unicas, tempo, num_paginas, faltas):
     print(f"Arquivo            : {arquivo}")
     print(f"Total de linhas    : {total_linhas}")
     print(f"Linhas únicas      : {len(unicas)}")
+    print(f"Total de páginas   : {num_paginas}")
+    print(f"Faltas de página   : {faltas}")
     print(f"Tempo              : {tempo:.2f} s")
 
     if tempo > 0:
         print(f"Taxa               : " f"{total_linhas/tempo:,.0f} linhas/s")
 
 
-def FIFO(endereco):
-    print(endereco)
-
-
 def run_perf_test(arquivo, tam_memoria, tam_pagina, algoritmo):
     inicio = time.perf_counter()
+
     total_linhas = 0
     unicas = {}
+
+    num_paginas = tam_memoria // tam_pagina
+    paginas = []
+    faltas = 0
 
     with open(arquivo, "rb") as fh:
         dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
@@ -59,14 +81,14 @@ def run_perf_test(arquivo, tam_memoria, tam_pagina, algoritmo):
                 endereco = int(linha.strip(), 16)
 
                 # Chama o algoritmo de substituição de página com o endereço convertido
-                algoritmo(endereco)
+                faltas = algoritmo(endereco, tam_pagina, paginas, num_paginas, faltas)
 
                 total_linhas += 1
                 unicas[linha] = unicas.get(linha, 0) + 1
 
     fim = time.perf_counter()
     tempo = fim - inicio
-    print_results(arquivo, total_linhas, unicas, tempo)
+    print_results(arquivo, total_linhas, unicas, tempo, num_paginas, faltas)
 
 
 def main():
@@ -76,7 +98,7 @@ def main():
     #     print(f"Uso: {sys.argv[0]} arquivo.zst")
     #     sys.exit(1)
 
-    arquivo = "data/acessos-Demo0.txt.zst"  # sys.argv[1]
+    arquivo = "data/acessos-A0.txt.zst"  # sys.argv[1]
 
     print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
 
