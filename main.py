@@ -3,7 +3,7 @@ import io
 import time
 import zstandard as zstd
 
-unidades = {"B": 0, "KB": 1, "MB": 2, "GB": 3}
+UNIDADES = {"B": 0, "KB": 1, "MB": 2, "GB": 3}
 
 
 def get_tamanho_bytes(message):
@@ -13,7 +13,7 @@ def get_tamanho_bytes(message):
             tamanho, unidade = input(message).split(" ")
 
             # Busca a potência correspondente à unidade fornecida pelo usuário
-            potencia = unidades.get(unidade.upper(), -1)
+            potencia = UNIDADES.get(unidade.upper(), -1)
 
             # Se a unidade não for válida, raise ValueError
             if potencia == -1:
