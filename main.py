@@ -85,10 +85,14 @@ def get_acesso_paginas(arquivo, tam_pagina):
                 # Adiciona o número da página à lista de acessos
                 acesso_paginas.append(num_pagina)
 
+                # Incrementa o contador de endereços processados
                 enderecos += 1
+
+                # Conta o número de acessos únicos por endereço e por página
                 unicos[endereco] = unicos.get(linha, 0) + 1
                 unicas[num_pagina] = unicas.get(num_pagina, 0) + 1
 
+    # Calcula o total de páginas acessadas
     total_paginas = len(acesso_paginas)
 
     print(f"Total de endereços : {enderecos}")
