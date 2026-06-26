@@ -28,13 +28,13 @@ def main():
     print(f"Limite de páginas  : {num_paginas}")
 
     # Mapeia os endereços de acesso para números de página
-    acesso_paginas = get_acesso_paginas(arquivo, tam_pagina)
+    acesso_paginas, total_paginas = get_acesso_paginas(arquivo, tam_pagina)
 
     faltas, tempo = FIFO(acesso_paginas)
-    mostrar_resultado("FIFO", faltas, tempo)
+    mostrar_resultado("FIFO", faltas, tempo, total_paginas)
 
     faltas, tempo = OPT(acesso_paginas)
-    mostrar_resultado("OPT", faltas, tempo)
+    mostrar_resultado("OPT", faltas, tempo, total_paginas)
 
 
 def get_tamanho_bytes(message):
@@ -65,9 +65,10 @@ def get_tamanho_bytes(message):
 
 
 def get_acesso_paginas(arquivo, tam_pagina):
-    total_linhas = 0
-    unicas = {}
+    enderecos = 0
+    unicos = {}
     acesso_paginas = []
+    unicas = {}
 
     with open(arquivo, "rb") as fh:
         print(f"Arquivo            : {arquivo}")
@@ -84,13 +85,18 @@ def get_acesso_paginas(arquivo, tam_pagina):
                 # Adiciona o número da página à lista de acessos
                 acesso_paginas.append(num_pagina)
 
-                total_linhas += 1
-                unicas[linha] = unicas.get(linha, 0) + 1
+                enderecos += 1
+                unicos[endereco] = unicos.get(linha, 0) + 1
+                unicas[num_pagina] = unicas.get(num_pagina, 0) + 1
 
-    print(f"Total de linhas    : {total_linhas}")
-    print(f"Linhas únicas      : {len(unicas)}")
+    total_paginas = len(acesso_paginas)
 
-    return acesso_paginas
+    print(f"Total de endereços : {enderecos}")
+    print(f"Endereços únicos   : {len(unicos)}")
+    print(f"Total de páginas   : {total_paginas}")
+    print(f"Páginas únicas     : {len(unicas)}")
+
+    return acesso_paginas, total_paginas
 
 
 def FIFO(acesso_paginas, num_paginas):
@@ -169,11 +175,11 @@ def OPT(acesso_paginas, num_paginas):
     return faltas, tempo
 
 
-def mostrar_resultado(algoritmo, faltas, tempo):
-    print(f"Alogitmo           : {algoritmo}")
+def mostrar_resultado(algoritmo, faltas, tempo, total_paginas):
+    print(f"Algoritmo          : {algoritmo}")
     print(f"Faltas de página   : {faltas}")
     print(f"Tempo              : {tempo:.2f} s")
-    # print(f"Taxa               : " f"{num_paginas/tempo:,.0f} paginas/s")
+    print(f"Taxa               : {total_paginas/tempo:,.0f} paginas/s")
 
 
 if __name__ == "__main__":
