@@ -5,6 +5,8 @@ import zstandard as zstd
 
 UNIDADES = {"B": 0, "KB": 1, "MB": 2, "GB": 3}
 
+ACESSOS_PAGINAS = []
+
 
 def get_tamanho_bytes(message):
     while True:
@@ -35,6 +37,9 @@ def FIFO(endereco, tam_pagina, paginas, num_paginas, faltas):
     # Calcula o número da página a partir do endereço
     num_pagina = endereco // tam_pagina
 
+    # Adiciona o número da página à lista global de acessos
+    ACESSOS_PAGINAS.append(num_pagina)
+
     # Se a página já estiver na memória, não faz nada
     if num_pagina in paginas:
         return faltas
@@ -42,6 +47,34 @@ def FIFO(endereco, tam_pagina, paginas, num_paginas, faltas):
     # Se a memória estiver cheia, remove a página mais antiga (FIFO)
     if len(paginas) >= num_paginas:
         paginas.pop(0)
+
+    # Adiciona a nova página à memória
+    paginas.append(num_pagina)
+
+    faltas += 1
+    return faltas
+
+
+def OPT(endereco, tam_pagina, paginas, num_paginas, faltas):
+    # Calcula o número da página a partir da lista de acesso
+    num_pagina = ACESSOS_PAGINAS.pop(0)
+
+    # Se a página já estiver na memória, não faz nada
+    if num_pagina in paginas:
+        return faltas
+
+    # Se a memória estiver cheia, remove a página mais longe (OPT)
+    if len(paginas) >= num_paginas:
+        remover = -1
+        for i, pagina in enumerate(paginas):
+            try:
+                proximo_acesso = ACESSOS_PAGINAS.index(pagina)
+            except ValueError:
+                remover = i
+                break
+            if proximo_acesso > remover:
+                remover = i
+        paginas.pop(remover)
 
     # Adiciona a nova página à memória
     paginas.append(num_pagina)
@@ -112,6 +145,7 @@ def main():
         tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
 
     run_perf_test(arquivo, tam_memoria, tam_pagina, FIFO)
+    run_perf_test(arquivo, tam_memoria, tam_pagina, OPT)
 
 
 if __name__ == "__main__":
