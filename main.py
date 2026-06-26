@@ -4,6 +4,39 @@ import time
 import zstandard as zstd
 
 
+def main():
+    # TODO: Remove hardcoded example file path
+
+    # if len(sys.argv) != 2:
+    #     print(f"Uso: {sys.argv[0]} arquivo.zst")
+    #     sys.exit(1)
+
+    arquivo = "data/acessos-A0.txt.zst"  # sys.argv[1]
+
+    # Solicita ao usuário o tamanho da memória e da página e converte para bytes
+    print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
+    tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
+    tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
+
+    # Garante que o tamanho da página seja menos ou igual ao tamanho da memória
+    while tam_pagina > tam_memoria:
+        print("O tamanho da página deve ser menor ou igual ao tamanho da memória.")
+        tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
+
+    # Calcula o número de páginas que cabem na memória
+    num_paginas = tam_memoria // tam_pagina
+    print(f"Limite de páginas  : {num_paginas}")
+
+    # Mapeia os endereços de acesso para números de página
+    acesso_paginas = get_acesso_paginas(arquivo, tam_pagina)
+
+    faltas, tempo = FIFO(acesso_paginas)
+    mostrar_resultado("FIFO", faltas, tempo)
+
+    faltas, tempo = OPT(acesso_paginas)
+    mostrar_resultado("OPT", faltas, tempo)
+
+
 def get_tamanho_bytes(message):
     unidades = {"B": 0, "KB": 1, "MB": 2, "GB": 3, "TB": 4}
 
@@ -141,39 +174,6 @@ def mostrar_resultado(algoritmo, faltas, tempo):
     print(f"Faltas de página   : {faltas}")
     print(f"Tempo              : {tempo:.2f} s")
     # print(f"Taxa               : " f"{num_paginas/tempo:,.0f} paginas/s")
-
-
-def main():
-    # TODO: Remove hardcoded example file path
-
-    # if len(sys.argv) != 2:
-    #     print(f"Uso: {sys.argv[0]} arquivo.zst")
-    #     sys.exit(1)
-
-    arquivo = "data/acessos-A0.txt.zst"  # sys.argv[1]
-
-    # Solicita ao usuário o tamanho da memória e da página e converte para bytes
-    print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
-    tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
-    tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
-
-    # Garante que o tamanho da página seja menos ou igual ao tamanho da memória
-    while tam_pagina > tam_memoria:
-        print("O tamanho da página deve ser menor ou igual ao tamanho da memória.")
-        tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
-
-    # Calcula o número de páginas que cabem na memória
-    num_paginas = tam_memoria // tam_pagina
-    print(f"Limite de páginas  : {num_paginas}")
-
-    # Mapeia os endereços de acesso para números de página
-    acesso_paginas = get_acesso_paginas(arquivo, tam_pagina)
-
-    faltas, tempo = FIFO(acesso_paginas)
-    mostrar_resultado("FIFO", faltas, tempo)
-
-    faltas, tempo = OPT(acesso_paginas)
-    mostrar_resultado("OPT", faltas, tempo)
 
 
 if __name__ == "__main__":
