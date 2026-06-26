@@ -3,19 +3,17 @@ import io
 import time
 import zstandard as zstd
 
-UNIDADES = {"B": 0, "KB": 1, "MB": 2, "GB": 3}
-
-ACESSOS_PAGINAS = []
-
 
 def get_tamanho_bytes(message):
+    unidades = {"B": 0, "KB": 1, "MB": 2, "GB": 3, "TB": 4}
+
     while True:
         try:
             # Obtém o tamanho e a unidade do usuário, separados por espaço
             tamanho, unidade = input(message).split(" ")
 
             # Busca a potência correspondente à unidade fornecida pelo usuário
-            potencia = UNIDADES.get(unidade.upper(), -1)
+            potencia = unidades.get(unidade.upper(), -1)
 
             # Se a unidade não for válida, raise ValueError
             if potencia == -1:
@@ -33,79 +31,13 @@ def get_tamanho_bytes(message):
             print("Informe o valor conforme o formato especificado.")
 
 
-def FIFO(endereco, tam_pagina, paginas, num_paginas, faltas):
-    # Calcula o número da página a partir do endereço
-    num_pagina = endereco // tam_pagina
-
-    # Adiciona o número da página à lista global de acessos
-    ACESSOS_PAGINAS.append(num_pagina)
-
-    # Se a página já estiver na memória, não faz nada
-    if num_pagina in paginas:
-        return faltas
-
-    # Se a memória estiver cheia, remove a página mais antiga (FIFO)
-    if len(paginas) >= num_paginas:
-        paginas.pop(0)
-
-    # Adiciona a nova página à memória
-    paginas.append(num_pagina)
-
-    faltas += 1
-    return faltas
-
-
-def OPT(endereco, tam_pagina, paginas, num_paginas, faltas):
-    # Calcula o número da página a partir da lista de acesso
-    num_pagina = ACESSOS_PAGINAS.pop(0)
-
-    # Se a página já estiver na memória, não faz nada
-    if num_pagina in paginas:
-        return faltas
-
-    # Se a memória estiver cheia, remove a página mais longe (OPT)
-    if len(paginas) >= num_paginas:
-        remover = -1
-        for i, pagina in enumerate(paginas):
-            try:
-                proximo_acesso = ACESSOS_PAGINAS.index(pagina)
-            except ValueError:
-                remover = i
-                break
-            if proximo_acesso > remover:
-                remover = i
-        paginas.pop(remover)
-
-    # Adiciona a nova página à memória
-    paginas.append(num_pagina)
-
-    faltas += 1
-    return faltas
-
-
-def print_results(arquivo, total_linhas, unicas, tempo, num_paginas, faltas):
-    print(f"Arquivo            : {arquivo}")
-    print(f"Total de linhas    : {total_linhas}")
-    print(f"Linhas únicas      : {len(unicas)}")
-    print(f"Total de páginas   : {num_paginas}")
-    print(f"Faltas de página   : {faltas}")
-    print(f"Tempo              : {tempo:.2f} s")
-
-    if tempo > 0:
-        print(f"Taxa               : " f"{total_linhas/tempo:,.0f} linhas/s")
-
-
-def run_perf_test(arquivo, tam_memoria, tam_pagina, algoritmo):
-    inicio = time.perf_counter()
-
+def get_acesso_paginas(arquivo, tam_pagina):
     total_linhas = 0
     unicas = {}
-
-    num_paginas = tam_memoria // tam_pagina
-    paginas = []
-    faltas = 0
+    acesso_paginas = []
 
     with open(arquivo, "rb") as fh:
+        print(f"Arquivo            : {arquivo}")
         dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
         with dctx.stream_reader(fh) as reader:
             text_stream = io.TextIOWrapper(reader, encoding="utf-8")
@@ -113,15 +45,102 @@ def run_perf_test(arquivo, tam_memoria, tam_pagina, algoritmo):
                 # Convete a linha de endereço hexadecimal para os bytes correspondentes
                 endereco = int(linha.strip(), 16)
 
-                # Chama o algoritmo de substituição de página com o endereço convertido
-                faltas = algoritmo(endereco, tam_pagina, paginas, num_paginas, faltas)
+                # Calcula o número da página a partir do endereço
+                num_pagina = endereco // tam_pagina
+
+                # Adiciona o número da página à lista de acessos
+                acesso_paginas.append(num_pagina)
 
                 total_linhas += 1
                 unicas[linha] = unicas.get(linha, 0) + 1
 
+    print(f"Total de linhas    : {total_linhas}")
+    print(f"Linhas únicas      : {len(unicas)}")
+
+    return acesso_paginas
+
+
+def FIFO(acesso_paginas, num_paginas):
+    inicio = time.perf_counter()
+
+    paginas_mem = []
+    faltas = 0
+
+    for pagina in acesso_paginas:
+        # Se a página já estiver na memória, não faz nada
+        if pagina in paginas_mem:
+            continue
+
+        # Se a memória estiver cheia, remove a página mais antiga (FIFO)
+        if len(paginas_mem) >= num_paginas:
+            paginas_mem.pop(0)
+
+        # Adiciona a nova página à memória
+        paginas_mem.append(pagina)
+
+        # Incrementa uma falta de página uma vez que ela foi buscada na memória
+        faltas += 1
+
     fim = time.perf_counter()
     tempo = fim - inicio
-    print_results(arquivo, total_linhas, unicas, tempo, num_paginas, faltas)
+
+    return faltas, tempo
+
+
+def OPT(acesso_paginas, num_paginas):
+    inicio = time.perf_counter()
+
+    paginas_mem = []
+    faltas = 0
+
+    for i, pagina in enumerate(acesso_paginas):
+        # Se a página já estiver na memória, não faz nada
+        if pagina in paginas_mem:
+            continue
+
+        # Se a memória estiver cheia, remove a página mais longe (OPT)
+        if len(paginas_mem) >= num_paginas:
+            # Cria uma sublista de acessos futuros a partir do próximo acesso
+            acessos = acesso_paginas[i + 1 :]
+            maior_distancia = -1
+            remover = None
+
+            # Itera sobre as páginas na memória para encontrar a que será acessada mais tarde
+            for j, pag in enumerate(paginas_mem):
+                try:
+                    # Encontra o índice do próximo acesso da página atual na lista de acessos futuros
+                    proximo_acesso = acessos.index(pag)
+                except ValueError:
+                    # Se a página não for mais aessada, pode ser removida imediatamente
+                    remover = j
+                    break
+
+                # Se o próximo acesso for maior que a maior distância encontrada até agora
+                # atualiza a maior distância e a página a ser removida
+                if proximo_acesso > maior_distancia:
+                    maior_distancia = proximo_acesso
+                    remover = j
+
+            # Remove a página que será acessada mais tarde
+            paginas_mem.pop(remover)
+
+        # Adiciona a nova página à memória
+        paginas_mem.append(pagina)
+
+        # Incrementa uma falta de página uma vez que ela foi buscada na memória
+        faltas += 1
+
+    fim = time.perf_counter()
+    tempo = fim - inicio
+
+    return faltas, tempo
+
+
+def mostrar_resultado(algoritmo, faltas, tempo):
+    print(f"Alogitmo           : {algoritmo}")
+    print(f"Faltas de página   : {faltas}")
+    print(f"Tempo              : {tempo:.2f} s")
+    # print(f"Taxa               : " f"{num_paginas/tempo:,.0f} paginas/s")
 
 
 def main():
@@ -133,19 +152,28 @@ def main():
 
     arquivo = "data/acessos-A0.txt.zst"  # sys.argv[1]
 
-    print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
-
     # Solicita ao usuário o tamanho da memória e da página e converte para bytes
+    print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
     tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
     tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
 
-    # Garante que o tamanho da página seja menos ou igual ao tamanho da mem´roia
+    # Garante que o tamanho da página seja menos ou igual ao tamanho da memória
     while tam_pagina > tam_memoria:
         print("O tamanho da página deve ser menor ou igual ao tamanho da memória.")
         tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
 
-    run_perf_test(arquivo, tam_memoria, tam_pagina, FIFO)
-    run_perf_test(arquivo, tam_memoria, tam_pagina, OPT)
+    # Calcula o número de páginas que cabem na memória
+    num_paginas = tam_memoria // tam_pagina
+    print(f"Limite de páginas  : {num_paginas}")
+
+    # Mapeia os endereços de acesso para números de página
+    acesso_paginas = get_acesso_paginas(arquivo, tam_pagina)
+
+    faltas, tempo = FIFO(acesso_paginas)
+    mostrar_resultado("FIFO", faltas, tempo)
+
+    faltas, tempo = OPT(acesso_paginas)
+    mostrar_resultado("OPT", faltas, tempo)
 
 
 if __name__ == "__main__":
