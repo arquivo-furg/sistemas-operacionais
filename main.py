@@ -30,11 +30,11 @@ def main():
     # Mapeia os endereços de acesso para números de página
     acesso_paginas, total_paginas = get_acesso_paginas(arquivo, tam_pagina)
 
-    faltas, tempo = FIFO(acesso_paginas)
-    mostrar_resultado("FIFO", faltas, tempo, total_paginas)
-
     faltas, tempo = OPT(acesso_paginas)
     mostrar_resultado("OPT", faltas, tempo, total_paginas)
+
+    faltas, tempo = FIFO(acesso_paginas)
+    mostrar_resultado("FIFO", faltas, tempo, total_paginas)
 
 
 def get_tamanho_bytes(message):
@@ -184,6 +184,7 @@ def mostrar_resultado(algoritmo, faltas, tempo, total_paginas):
     print(f"Faltas de página   : {faltas}")
     print(f"Tempo              : {tempo:.2f} s")
     print(f"Taxa               : {total_paginas/tempo:,.0f} paginas/s")
+    print(f"Eficiência         : {(1 - (faltas/total_paginas)):.2%}")
 
 
 if __name__ == "__main__":
