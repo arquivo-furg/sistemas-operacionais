@@ -25,25 +25,25 @@ def main():
         tam_pagina = get_tamanho_bytes("Tamanho da página  : ")
 
     # Calcula o número de páginas que cabem na memória
-    num_paginas = tam_memoria // tam_pagina
-    print(f"Páginas na memória : {num_paginas}")
+    num_quadros = tam_memoria // tam_pagina
+    print(f"Páginas na memória : {num_quadros}")
 
-    # Requisito recomendado 1: estimativa do tamanho da tabela de páginas
-    mostrar_tamanho_tabela(tam_pagina, num_paginas)
+    # Calcula a estimativa do tamanho da tabela de páginas
+    tamanho_tabela(tam_pagina, num_quadros)
 
     # Mapeia os endereços de acesso para números de página
-    acesso_paginas, total_paginas, paginas_unicas = get_acesso_paginas(
+    acesso_paginas, total_paginas, paginas_unicas = get_paginas_acessadas(
         arquivo, tam_pagina
     )
 
     # Barra de progresso da memória ativa apenas para memórias pequenas (≤ 64 quadros)
-    mostrar_barra = num_paginas <= 64
+    mostrar_barra = num_quadros <= 64
 
-    faltas, tempo, carregamentos = OPT(acesso_paginas, num_paginas, mostrar_barra)
+    faltas, tempo, carregamentos = OPT(acesso_paginas, num_quadros, mostrar_barra)
     mostrar_resultado("OPT", faltas, tempo, total_paginas, paginas_unicas)
     salvar_carregamentos("OPT", carregamentos)
 
-    faltas, tempo, carregamentos = FIFO(acesso_paginas, num_paginas, mostrar_barra)
+    faltas, tempo, carregamentos = FIFO(acesso_paginas, num_quadros, mostrar_barra)
     mostrar_resultado("FIFO", faltas, tempo, total_paginas, paginas_unicas)
     salvar_carregamentos("FIFO", carregamentos)
 
@@ -73,11 +73,42 @@ def get_tamanho_bytes(message):
             print("Informe o valor conforme o formato especificado.")
 
 
-def get_acesso_paginas(arquivo, tam_pagina):
-    enderecos = 0
-    unicos = set()
-    acesso_paginas = []
-    unicas = set()
+def tamanho_tabela(tam_pagina, num_quadros):
+    # Cada caractere do endereço está em hexadecimal, 16 valores de 0 a F -> 2^4
+    # Os endereços possuem 12 caracteres, que combinados, dão o espaço de endereçamento total
+    # Espaço de endereçamento = 16^12 -> (2^4)^12 -> 2^48 bytes
+    num_entradas = 2**48 // tam_pagina
+
+    # Bits necessários para indexar todos os quadros físicos
+    bits_entrada = math.ceil(math.log2(max(num_quadros, 2)))
+
+    # Arredonda para o menor byte que comporta esses bits
+    bytes_entrada = 1
+    while bytes_entrada * 8 < bits_entrada:
+        bytes_entrada *= 2
+
+    # Calcula o tamanho total da tabela de páginas em bytes
+    # Cada página possível precisa de uma entrada na tabela,
+    #   pois cada página pode ser mapeada para um quadro físico diferente
+    tam_quadro = num_entradas * bytes_entrada
+
+    print(f"\nTabela de páginas  : {formatar_bytes(tam_quadro)}")
+
+
+def formatar_bytes(valor):
+    unidades = list(UNIDADES.keys())
+    i = 0
+    while valor >= 1024 and i < len(unidades) - 1:
+        valor /= 1024
+        i += 1
+    return f"{valor:.2f} {unidades[i]}"
+
+
+def get_paginas_acessadas(arquivo, tam_pagina):
+    num_enderecos = 0
+    num_enderecos_unicos = set()
+    paginas_acessadas = []
+    num_paginas_unicas = set()
 
     with open(arquivo, "rb") as fh:
         dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
@@ -91,53 +122,23 @@ def get_acesso_paginas(arquivo, tam_pagina):
                 num_pagina = endereco // tam_pagina
 
                 # Adiciona o número da página à lista de acessos
-                acesso_paginas.append(num_pagina)
+                paginas_acessadas.append(num_pagina)
 
                 # Incrementa o contador de endereços processados
-                enderecos += 1
+                num_enderecos += 1
 
                 # Conta o número de acessos únicos por endereço e por página
-                unicos.add(endereco)
-                unicas.add(num_pagina)
+                num_enderecos_unicos.add(endereco)
+                num_paginas_unicas.add(num_pagina)
 
     # Calcula o total de páginas acessadas
-    total_paginas = len(acesso_paginas)
+    total_acessos = len(paginas_acessadas)
 
-    print(f"\nTotal de endereços : {enderecos}")
-    print(f"Endereços únicos   : {len(unicos)}")
-    # print(f"Total de páginas   : {total_paginas}")
-    print(f"Páginas únicas     : {len(unicas)}")
+    print(f"\nTotal de endereços : {num_enderecos}")
+    print(f"Endereços únicos   : {len(num_enderecos_unicos)}")
+    print(f"Páginas únicas     : {len(num_paginas_unicas)}")
 
-    return acesso_paginas, total_paginas, len(unicas)
-
-
-def formatar_bytes(valor):
-    unidades = list(UNIDADES.keys())
-
-    i = 0
-    while valor >= 1024 and i < len(unidades) - 1:
-        valor /= 1024
-        i += 1
-
-    return f"{valor:.2f} {unidades[i]}"
-
-
-def mostrar_tamanho_tabela(tam_pagina, num_quadros):
-    # Número de páginas virtuais = espaço de endereçamento / tamanho da página
-    # Endereços do arquivo têm 48 bits = 2^48 bytes
-    num_entradas = 2**48 // tam_pagina
-
-    # Bits necessários para indexar todos os quadros físicos
-    bits_por_entrada = math.ceil(math.log2(max(num_quadros, 2)))
-
-    # Arredonda para o menor tipo inteiro que comporta esses bits (1, 2, 4 ou 8 bytes)
-    bytes_por_entrada = 1
-    while bytes_por_entrada * 8 < bits_por_entrada:
-        bytes_por_entrada *= 2
-
-    tamanho_bytes = num_entradas * bytes_por_entrada
-
-    print(f"\nTabela de páginas  : {formatar_bytes(tamanho_bytes)}")
+    return paginas_acessadas, total_acessos, len(num_paginas_unicas)
 
 
 def salvar_carregamentos(algoritmo, carregamentos):
