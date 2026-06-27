@@ -142,7 +142,6 @@ def OPT(acesso_paginas, num_paginas):
         # Se a memória estiver cheia, remove a página mais longe (OPT)
         if len(paginas_mem) >= num_paginas:
             # Cria uma sublista de acessos futuros a partir do próximo acesso
-            acessos_futuros = acesso_paginas[i + 1 :]
             maior_distancia = -1
             remover = None
 
@@ -150,7 +149,7 @@ def OPT(acesso_paginas, num_paginas):
             for j, pag in enumerate(paginas_mem):
                 try:
                     # Encontra o índice do próximo acesso da página atual na lista de acessos futuros
-                    proximo_acesso = acessos_futuros.index(pag)
+                    proximo_acesso = acesso_paginas.index(pag, i + 1)
                 except ValueError:
                     # Se a página não for mais aessada, pode ser removida imediatamente
                     remover = j
