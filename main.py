@@ -32,20 +32,20 @@ def main():
     tamanho_tabela(tam_pagina, num_quadros)
 
     # Mapeia os endereços de acesso para números de página
-    acesso_paginas, total_paginas, paginas_unicas = get_paginas_acessadas(
+    paginas_acessadas, total_acessos, num_paginas_unicas = get_paginas_acessadas(
         arquivo, tam_pagina
     )
 
-    # Barra de progresso da memória ativa apenas para memórias pequenas (≤ 64 quadros)
-    mostrar_barra = num_quadros <= 64
-
-    faltas, tempo, carregamentos = OPT(acesso_paginas, num_quadros, mostrar_barra)
-    mostrar_resultado("OPT", faltas, tempo, total_paginas, paginas_unicas)
+    faltas_opt, tempo, carregamentos = OPT(paginas_acessadas, num_quadros)
+    mostrar_resultado("OPT", faltas_opt, tempo, total_acessos, num_paginas_unicas)
     salvar_carregamentos("OPT", carregamentos)
 
-    faltas, tempo, carregamentos = FIFO(acesso_paginas, num_quadros, mostrar_barra)
-    mostrar_resultado("FIFO", faltas, tempo, total_paginas, paginas_unicas)
+    faltas_fifo, tempo, carregamentos = FIFO(paginas_acessadas, num_quadros)
+    mostrar_resultado("FIFO", faltas_fifo, tempo, total_acessos, num_paginas_unicas)
     salvar_carregamentos("FIFO", carregamentos)
+
+    eficiencia_fifo = faltas_opt / faltas_fifo
+    print(f"Eficiência FIFOxOPT: {eficiencia_fifo:.2%}")
 
 
 def get_tamanho_bytes(message):
@@ -106,9 +106,9 @@ def formatar_bytes(valor):
 
 def get_paginas_acessadas(arquivo, tam_pagina):
     num_enderecos = 0
-    num_enderecos_unicos = set()
+    enderecos_unicos = set()
     paginas_acessadas = []
-    num_paginas_unicas = set()
+    paginas_unicas = set()
 
     with open(arquivo, "rb") as fh:
         dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
@@ -128,54 +128,33 @@ def get_paginas_acessadas(arquivo, tam_pagina):
                 num_enderecos += 1
 
                 # Conta o número de acessos únicos por endereço e por página
-                num_enderecos_unicos.add(endereco)
-                num_paginas_unicas.add(num_pagina)
+                enderecos_unicos.add(endereco)
+                paginas_unicas.add(num_pagina)
 
     # Calcula o total de páginas acessadas
     total_acessos = len(paginas_acessadas)
 
     print(f"\nTotal de endereços : {num_enderecos}")
-    print(f"Endereços únicos   : {len(num_enderecos_unicos)}")
-    print(f"Páginas únicas     : {len(num_paginas_unicas)}")
+    print(f"Endereços únicos   : {len(enderecos_unicos)}")
+    print(f"Páginas únicas     : {len(paginas_unicas)}")
 
-    return paginas_acessadas, total_acessos, len(num_paginas_unicas)
-
-
-def salvar_carregamentos(algoritmo, carregamentos):
-    nome_arquivo = f"carregamentos_{algoritmo.lower()}.json"
-
-    with open(nome_arquivo, "w", encoding="utf-8") as f:
-        json.dump(carregamentos, f, indent=2)
-
-    print(f"Carregamentos/pág  : {nome_arquivo}")
+    return paginas_acessadas, total_acessos, len(paginas_unicas)
 
 
-def barra_memoria(paginas_mem, num_paginas):
-    ocupados = len(paginas_mem)
-    barra = "█" * ocupados + "░" * (num_paginas - ocupados)
-    paginas_str = ", ".join(str(p) for p in paginas_mem)
-    print(
-        f"\r  [{barra}] {ocupados}/{num_paginas}  [{paginas_str}]", end="", flush=True
-    )
-
-
-def FIFO(acesso_paginas, num_paginas, mostrar_barra):
+def FIFO(paginas_acessadas, num_quadros):
     inicio = time.perf_counter()
 
     paginas_mem = []
     faltas = 0
-    carregamentos = {}  # Requisito 2: conta carregamentos por página
+    carregamentos = {}
 
-    if mostrar_barra:
-        print(f"\nFIFO: progresso da memória ({num_paginas} quadros)")
-
-    for pagina in acesso_paginas:
+    for pagina in paginas_acessadas:
         # Se a página já estiver na memória, não faz nada
         if pagina in paginas_mem:
             continue
 
         # Se a memória estiver cheia, remove a página mais antiga (FIFO)
-        if len(paginas_mem) >= num_paginas:
+        if len(paginas_mem) >= num_quadros:
             paginas_mem.pop(0)
 
         # Adiciona a nova página à memória
@@ -184,15 +163,12 @@ def FIFO(acesso_paginas, num_paginas, mostrar_barra):
         # Incrementa uma falta de página uma vez que ela foi buscada na memória
         faltas += 1
 
-        # Requisito 2: incrementa contador de carregamentos da página
-        carregamentos[str(pagina)] = carregamentos.get(str(pagina), 0) + 1
+        # Incrementa contador de carregamentos da página
+        pagina = str(pagina)
+        carregamentos[pagina] = carregamentos.get(pagina, 0) + 1
 
-        # Requisito 3: exibe barra de memória (apenas para memórias pequenas)
-        if mostrar_barra:
-            barra_memoria(paginas_mem, num_paginas)
-
-    if mostrar_barra:
-        print()
+        # Exibe barra de memória
+        barra_memoria(paginas_mem, num_quadros)
 
     fim = time.perf_counter()
     tempo = fim - inicio
@@ -200,23 +176,20 @@ def FIFO(acesso_paginas, num_paginas, mostrar_barra):
     return faltas, tempo, carregamentos
 
 
-def OPT(acesso_paginas, num_paginas, mostrar_barra):
+def OPT(paginas_acessadas, num_quadros):
     inicio = time.perf_counter()
 
     paginas_mem = []
     faltas = 0
     carregamentos = {}
 
-    if mostrar_barra:
-        print(f"\nOPT: progresso da memória ({num_paginas} quadros)")
-
-    for i, pagina in enumerate(acesso_paginas):
+    for i, pagina in enumerate(paginas_acessadas):
         # Se a página já estiver na memória, não faz nada
         if pagina in paginas_mem:
             continue
 
         # Se a memória estiver cheia, remove a página mais longe (OPT)
-        if len(paginas_mem) >= num_paginas:
+        if len(paginas_mem) >= num_quadros:
             # Cria uma sublista de acessos futuros a partir do próximo acesso
             maior_distancia = -1
             remover = None
@@ -225,14 +198,14 @@ def OPT(acesso_paginas, num_paginas, mostrar_barra):
             for j, pag in enumerate(paginas_mem):
                 try:
                     # Encontra o índice do próximo acesso da página atual na lista de acessos futuros
-                    proximo_acesso = acesso_paginas.index(pag, i + 1)
+                    proximo_acesso = paginas_acessadas.index(pag, i + 1)
                 except ValueError:
                     # Se a página não for mais aessada, pode ser removida imediatamente
                     remover = j
                     break
 
                 # Se o próximo acesso for maior que a maior distância encontrada até agora
-                # atualiza a maior distância e a página a ser removida
+                #   atualiza a maior distância e a página a ser removida
                 if proximo_acesso > maior_distancia:
                     maior_distancia = proximo_acesso
                     remover = j
@@ -246,15 +219,12 @@ def OPT(acesso_paginas, num_paginas, mostrar_barra):
         # Incrementa uma falta de página uma vez que ela foi buscada na memória
         faltas += 1
 
-        # Requisito 2: incrementa contador de carregamentos da página
-        carregamentos[str(pagina)] = carregamentos.get(str(pagina), 0) + 1
+        # Incrementa contador de carregamentos da página
+        pagina = str(pagina)
+        carregamentos[pagina] = carregamentos.get(pagina, 0) + 1
 
-        # Requisito 3: exibe barra de memória (apenas para memórias pequenas)
-        if mostrar_barra:
-            barra_memoria(paginas_mem, num_paginas)
-
-    if mostrar_barra:
-        print()
+        # Exibe barra de memória
+        barra_memoria(paginas_mem, num_quadros)
 
     fim = time.perf_counter()
     tempo = fim - inicio
@@ -262,30 +232,38 @@ def OPT(acesso_paginas, num_paginas, mostrar_barra):
     return faltas, tempo, carregamentos
 
 
+def barra_memoria(paginas_mem, num_quadros):
+    ocupados = len(paginas_mem)
+    livres = num_quadros - ocupados
+
+    barra = "█" * ocupados + "░" * livres
+
+    print(f"[{barra}] {ocupados}/{num_quadros}", end="\r", flush=True)
+
+
 def mostrar_resultado(algoritmo, faltas, tempo, total_paginas, paginas_unicas):
-    # Cada página distinta precisa ser carregada pelo menos uma vez
-    # Esse é o mínimo teórico de faltas de página
-    faltas_obrigatorias = paginas_unicas
-
-    # Faltas extras causadas pela limitação da memória física
-    faltas_adicionais = faltas - faltas_obrigatorias
-
-    # Eficiência comparando o algoritmo com o mínimo teórico
-    # Quanto mais perto de 100%, mais próximo do mínimo possível
-    eficiencia = faltas_obrigatorias / faltas if faltas > 0 else 0
-
-    # Taxa de acerto: acessos que não causaram falta de página
+    # Taxa de acessos que não causaram falta de página
     acertos = total_paginas - faltas
     taxa_acerto = acertos / total_paginas if total_paginas > 0 else 0
 
+    # Taxa de eficiência do algoritmo em relação ao número de páginas únicas
+    eficiencia = paginas_unicas / faltas if faltas > 0 else 0
+
     print(f"\nAlgoritmo           : {algoritmo}")
     print(f"Faltas de página    : {faltas}")
-    print(f"Faltas obrigatórias : {faltas_obrigatorias}")
-    print(f"Faltas adicionais   : {faltas_adicionais}")
     print(f"Acertos             : {acertos}")
-    print(f"Taxa de acerto      : {taxa_acerto:.2%}")
-    print(f"Eficiência          : {eficiencia:.2%}")
+    print(f"Taxa de acerto      : {taxa_acerto:.2%}")  # Acessos sem falta
+    print(f"Eficiência          : {eficiencia:.2%}")  # vs Mínimo de faltas
     print(f"Tempo               : {tempo:.6f} s")
+
+
+def salvar_carregamentos(algoritmo, carregamentos):
+    nome_arquivo = f"carregamentos_{algoritmo.lower()}.json"
+
+    with open(nome_arquivo, "w", encoding="utf-8") as f:
+        json.dump(carregamentos, f, indent=2)
+
+    print(f"Carregamentos/pág  : {nome_arquivo}")
 
 
 if __name__ == "__main__":
