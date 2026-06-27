@@ -27,13 +27,15 @@ def main():
     print(f"Páginas na memória : {num_paginas}")
 
     # Mapeia os endereços de acesso para números de página
-    acesso_paginas, total_paginas = get_acesso_paginas(arquivo, tam_pagina)
+    acesso_paginas, total_paginas, paginas_unicas = get_acesso_paginas(
+        arquivo, tam_pagina
+    )
 
     faltas, tempo = OPT(acesso_paginas, num_paginas)
-    mostrar_resultado("OPT", faltas, tempo, total_paginas)
+    mostrar_resultado("OPT", faltas, tempo, total_paginas, paginas_unicas)
 
     faltas, tempo = FIFO(acesso_paginas, num_paginas)
-    mostrar_resultado("FIFO", faltas, tempo, total_paginas)
+    mostrar_resultado("FIFO", faltas, tempo, total_paginas, paginas_unicas)
 
 
 def get_tamanho_bytes(message):
@@ -98,7 +100,7 @@ def get_acesso_paginas(arquivo, tam_pagina):
     # print(f"Total de páginas   : {total_paginas}")
     print(f"Páginas únicas     : {len(unicas)}")
 
-    return acesso_paginas, total_paginas
+    return acesso_paginas, total_paginas, len(unicas)
 
 
 def FIFO(acesso_paginas, num_paginas):
@@ -176,14 +178,30 @@ def OPT(acesso_paginas, num_paginas):
     return faltas, tempo
 
 
-def mostrar_resultado(algoritmo, faltas, tempo, total_paginas):
-    acertos = total_paginas - faltas
-    eficiencia = acertos / total_paginas
+def mostrar_resultado(algoritmo, faltas, tempo, total_paginas, paginas_unicas):
+    # Cada página distinta precisa ser carregada pelo menos uma vez
+    # Esse é o mínimo teórico de faltas de página
+    faltas_obrigatorias = paginas_unicas
 
-    print(f"\nAlgoritmo          : {algoritmo}")
-    print(f"Faltas de página   : {faltas}")
-    print(f"Tempo              : {tempo:.6f} s")
-    print(f"Eficiência         : {eficiencia:.2%}")
+    # Faltas extras causadas pela limitação da memória física
+    faltas_adicionais = faltas - faltas_obrigatorias
+
+    # Eficiência comparando o algoritmo com o mínimo teórico
+    # Quanto mais perto de 100%, mais próximo do mínimo possível
+    eficiencia = faltas_obrigatorias / faltas if faltas > 0 else 0
+
+    # Taxa de acerto: acessos que não causaram falta de página
+    acertos = total_paginas - faltas
+    taxa_acerto = acertos / total_paginas if total_paginas > 0 else 0
+
+    print(f"\nAlgoritmo           : {algoritmo}")
+    print(f"Faltas de página    : {faltas}")
+    print(f"Faltas obrigatórias : {faltas_obrigatorias}")
+    print(f"Faltas adicionais   : {faltas_adicionais}")
+    print(f"Acertos             : {acertos}")
+    print(f"Taxa de acerto      : {taxa_acerto:.2%}")
+    print(f"Eficiência          : {eficiencia:.2%}")
+    print(f"Tempo               : {tempo:.6f} s")
 
 
 if __name__ == "__main__":
