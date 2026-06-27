@@ -12,16 +12,15 @@ def main():
     #     sys.exit(1)
 
     arquivo = "data/acessos-A0.txt.zst"  # sys.argv[1]
+    print(f"Arquivo            : {arquivo}")
 
     # Solicita ao usuário o tamanho da memória e da página e converte para bytes
-    print("Formato: TAMANHO [B|KB|MB|GB]. Exemplo: 1024 MB.")
-    tam_memoria = get_tamanho_bytes("Informe o tamanho da memória: ")
-    tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
+    tam_memoria = get_tamanho_bytes("Tamanho da memória : ")
+    tam_pagina = get_tamanho_bytes("Tamanho da página  : ")
 
     # Garante que o tamanho da página seja menos ou igual ao tamanho da memória
     while tam_pagina > tam_memoria:
-        print("O tamanho da página deve ser menor ou igual ao tamanho da memória.")
-        tam_pagina = get_tamanho_bytes("Informe o tamanho da página: ")
+        tam_pagina = get_tamanho_bytes("Tamanho da página  : ")
 
     # Calcula o número de páginas que cabem na memória
     num_paginas = tam_memoria // tam_pagina
@@ -30,10 +29,10 @@ def main():
     # Mapeia os endereços de acesso para números de página
     acesso_paginas, total_paginas = get_acesso_paginas(arquivo, tam_pagina)
 
-    faltas, tempo = OPT(acesso_paginas)
+    faltas, tempo = OPT(acesso_paginas, tam_pagina)
     mostrar_resultado("OPT", faltas, tempo, total_paginas)
 
-    faltas, tempo = FIFO(acesso_paginas)
+    faltas, tempo = FIFO(acesso_paginas, tam_pagina)
     mostrar_resultado("FIFO", faltas, tempo, total_paginas)
 
 
@@ -71,7 +70,6 @@ def get_acesso_paginas(arquivo, tam_pagina):
     unicas = {}
 
     with open(arquivo, "rb") as fh:
-        print(f"Arquivo            : {arquivo}")
         dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
         with dctx.stream_reader(fh) as reader:
             text_stream = io.TextIOWrapper(reader, encoding="utf-8")
@@ -95,9 +93,9 @@ def get_acesso_paginas(arquivo, tam_pagina):
     # Calcula o total de páginas acessadas
     total_paginas = len(acesso_paginas)
 
-    print(f"Total de endereços : {enderecos}")
+    print(f"\nTotal de endereços : {enderecos}")
     print(f"Endereços únicos   : {len(unicos)}")
-    print(f"Total de páginas   : {total_paginas}")
+    # print(f"Total de páginas   : {total_paginas}")
     print(f"Páginas únicas     : {len(unicas)}")
 
     return acesso_paginas, total_paginas
@@ -180,11 +178,13 @@ def OPT(acesso_paginas, num_paginas):
 
 
 def mostrar_resultado(algoritmo, faltas, tempo, total_paginas):
-    print(f"Algoritmo          : {algoritmo}")
+    acertos = total_paginas - faltas
+    eficiencia = acertos / total_paginas
+
+    print(f"\nAlgoritmo          : {algoritmo}")
     print(f"Faltas de página   : {faltas}")
-    print(f"Tempo              : {tempo:.2f} s")
-    print(f"Taxa               : {total_paginas/tempo:,.0f} paginas/s")
-    print(f"Eficiência         : {(1 - (faltas/total_paginas)):.2%}")
+    print(f"Tempo              : {tempo:.6f} s")
+    print(f"Eficiência         : {eficiencia:.2%}")
 
 
 if __name__ == "__main__":
