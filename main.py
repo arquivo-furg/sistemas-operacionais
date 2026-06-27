@@ -149,15 +149,12 @@ def salvar_carregamentos(algoritmo, carregamentos):
     print(f"Carregamentos/pág  : {nome_arquivo}")
 
 
-def barra_memoria(paginas_mem, num_paginas, algoritmo):
+def barra_memoria(paginas_mem, num_paginas):
     ocupados = len(paginas_mem)
-    blocos_cheios = ocupados
-    blocos_vazios = num_paginas - ocupados
-
-    barra = "█" * blocos_cheios + "░" * blocos_vazios
+    barra = "█" * ocupados + "░" * (num_paginas - ocupados)
     paginas_str = ", ".join(str(p) for p in paginas_mem)
     print(
-        f"  [{barra}] {ocupados:>{len(str(num_paginas))}}/{num_paginas}  [{paginas_str}]"
+        f"\r  [{barra}] {ocupados}/{num_paginas}  [{paginas_str}]", end="", flush=True
     )
 
 
@@ -191,7 +188,10 @@ def FIFO(acesso_paginas, num_paginas, mostrar_barra):
 
         # Requisito 3: exibe barra de memória (apenas para memórias pequenas)
         if mostrar_barra:
-            barra_memoria(paginas_mem, num_paginas, "FIFO")
+            barra_memoria(paginas_mem, num_paginas)
+
+    if mostrar_barra:
+        print()
 
     fim = time.perf_counter()
     tempo = fim - inicio
@@ -250,7 +250,10 @@ def OPT(acesso_paginas, num_paginas, mostrar_barra):
 
         # Requisito 3: exibe barra de memória (apenas para memórias pequenas)
         if mostrar_barra:
-            barra_memoria(paginas_mem, num_paginas, "OPT")
+            barra_memoria(paginas_mem, num_paginas)
+
+    if mostrar_barra:
+        print()
 
     fim = time.perf_counter()
     tempo = fim - inicio
