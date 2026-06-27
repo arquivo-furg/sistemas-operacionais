@@ -26,7 +26,7 @@ def main():
 
     # Calcula o número de páginas que cabem na memória
     num_quadros = tam_memoria // tam_pagina
-    print(f"Páginas na memória : {num_quadros}")
+    print(f"\nPáginas na memória : {num_quadros}")
 
     # Calcula a estimativa do tamanho da tabela de páginas
     tamanho_tabela(tam_pagina, num_quadros)
@@ -45,7 +45,7 @@ def main():
     salvar_carregamentos("FIFO", carregamentos)
 
     eficiencia_fifo = faltas_opt / faltas_fifo
-    print(f"Eficiência FIFOxOPT: {eficiencia_fifo:.2%}")
+    print(f"\nEficiência FIFOxOPT: {eficiencia_fifo:.2%}")
 
 
 def get_tamanho_bytes(message):
@@ -92,7 +92,7 @@ def tamanho_tabela(tam_pagina, num_quadros):
     #   pois cada página pode ser mapeada para um quadro físico diferente
     tam_quadro = num_entradas * bytes_entrada
 
-    print(f"\nTabela de páginas  : {formatar_bytes(tam_quadro)}")
+    print(f"Tabela de páginas  : {formatar_bytes(tam_quadro)}")
 
 
 def formatar_bytes(valor):
@@ -148,6 +148,8 @@ def FIFO(paginas_acessadas, num_quadros):
     faltas = 0
     carregamentos = {}
 
+    print(f"\nFIFO: progresso da memória ({num_quadros} quadros)")
+
     for pagina in paginas_acessadas:
         # Se a página já estiver na memória, não faz nada
         if pagina in paginas_mem:
@@ -182,6 +184,8 @@ def OPT(paginas_acessadas, num_quadros):
     paginas_mem = []
     faltas = 0
     carregamentos = {}
+
+    print(f"\nOPT: progresso da memória ({num_quadros} quadros)")
 
     for i, pagina in enumerate(paginas_acessadas):
         # Se a página já estiver na memória, não faz nada
@@ -249,12 +253,12 @@ def mostrar_resultado(algoritmo, faltas, tempo, total_paginas, paginas_unicas):
     # Taxa de eficiência do algoritmo em relação ao número de páginas únicas
     eficiencia = paginas_unicas / faltas if faltas > 0 else 0
 
-    print(f"\nAlgoritmo           : {algoritmo}")
-    print(f"Faltas de página    : {faltas}")
-    print(f"Acertos             : {acertos}")
-    print(f"Taxa de acerto      : {taxa_acerto:.2%}")  # Acessos sem falta
-    print(f"Eficiência          : {eficiencia:.2%}")  # vs Mínimo de faltas
-    print(f"Tempo               : {tempo:.6f} s")
+    print(f"\n\nAlgoritmo          : {algoritmo}")
+    print(f"Faltas de página   : {faltas}")
+    print(f"Acertos            : {acertos}")
+    print(f"Taxa de acerto     : {taxa_acerto:.2%}")  # Acessos sem falta
+    print(f"Eficiência         : {eficiencia:.2%}")  # vs Mínimo de faltas
+    print(f"Tempo              : {tempo:.6f}s")
 
 
 def salvar_carregamentos(algoritmo, carregamentos):
