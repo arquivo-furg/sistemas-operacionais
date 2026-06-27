@@ -24,15 +24,15 @@ def main():
 
     # Calcula o número de páginas que cabem na memória
     num_paginas = tam_memoria // tam_pagina
-    print(f"Limite de páginas  : {num_paginas}")
+    print(f"Páginas na memória : {num_paginas}")
 
     # Mapeia os endereços de acesso para números de página
     acesso_paginas, total_paginas = get_acesso_paginas(arquivo, tam_pagina)
 
-    faltas, tempo = OPT(acesso_paginas, tam_pagina)
+    faltas, tempo = OPT(acesso_paginas, num_paginas)
     mostrar_resultado("OPT", faltas, tempo, total_paginas)
 
-    faltas, tempo = FIFO(acesso_paginas, tam_pagina)
+    faltas, tempo = FIFO(acesso_paginas, num_paginas)
     mostrar_resultado("FIFO", faltas, tempo, total_paginas)
 
 
@@ -65,9 +65,9 @@ def get_tamanho_bytes(message):
 
 def get_acesso_paginas(arquivo, tam_pagina):
     enderecos = 0
-    unicos = {}
+    unicos = set()
     acesso_paginas = []
-    unicas = {}
+    unicas = set()
 
     with open(arquivo, "rb") as fh:
         dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
@@ -87,8 +87,8 @@ def get_acesso_paginas(arquivo, tam_pagina):
                 enderecos += 1
 
                 # Conta o número de acessos únicos por endereço e por página
-                unicos[endereco] = unicos.get(linha, 0) + 1
-                unicas[num_pagina] = unicas.get(num_pagina, 0) + 1
+                unicos.add(endereco)
+                unicas.add(num_pagina)
 
     # Calcula o total de páginas acessadas
     total_paginas = len(acesso_paginas)
