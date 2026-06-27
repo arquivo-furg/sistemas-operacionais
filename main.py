@@ -1,17 +1,19 @@
 import sys
 import io
 import time
+import json
+import math
 import zstandard as zstd
+
+UNIDADES = {"B": 0, "KB": 1, "MB": 2, "GB": 3, "TB": 4}
 
 
 def main():
-    # TODO: Remove hardcoded example file path
+    if len(sys.argv) != 2:
+        print(f"Uso: {sys.argv[0]} arquivo.zst")
+        sys.exit(1)
 
-    # if len(sys.argv) != 2:
-    #     print(f"Uso: {sys.argv[0]} arquivo.zst")
-    #     sys.exit(1)
-
-    arquivo = "data/acessos-A0.txt.zst"  # sys.argv[1]
+    arquivo = sys.argv[1]
     print(f"Arquivo            : {arquivo}")
 
     # Solicita ao usuário o tamanho da memória e da página e converte para bytes
@@ -26,28 +28,34 @@ def main():
     num_paginas = tam_memoria // tam_pagina
     print(f"Páginas na memória : {num_paginas}")
 
+    # Requisito recomendado 1: estimativa do tamanho da tabela de páginas
+    mostrar_tamanho_tabela(tam_pagina, num_paginas)
+
     # Mapeia os endereços de acesso para números de página
     acesso_paginas, total_paginas, paginas_unicas = get_acesso_paginas(
         arquivo, tam_pagina
     )
 
-    faltas, tempo = OPT(acesso_paginas, num_paginas)
-    mostrar_resultado("OPT", faltas, tempo, total_paginas, paginas_unicas)
+    # Barra de progresso da memória ativa apenas para memórias pequenas (≤ 64 quadros)
+    mostrar_barra = num_paginas <= 64
 
-    faltas, tempo = FIFO(acesso_paginas, num_paginas)
+    faltas, tempo, carregamentos = OPT(acesso_paginas, num_paginas, mostrar_barra)
+    mostrar_resultado("OPT", faltas, tempo, total_paginas, paginas_unicas)
+    salvar_carregamentos("OPT", carregamentos)
+
+    faltas, tempo, carregamentos = FIFO(acesso_paginas, num_paginas, mostrar_barra)
     mostrar_resultado("FIFO", faltas, tempo, total_paginas, paginas_unicas)
+    salvar_carregamentos("FIFO", carregamentos)
 
 
 def get_tamanho_bytes(message):
-    unidades = {"B": 0, "KB": 1, "MB": 2, "GB": 3, "TB": 4}
-
     while True:
         try:
             # Obtém o tamanho e a unidade do usuário, separados por espaço
             tamanho, unidade = input(message).split(" ")
 
             # Busca a potência correspondente à unidade fornecida pelo usuário
-            potencia = unidades.get(unidade.upper(), -1)
+            potencia = UNIDADES.get(unidade.upper(), -1)
 
             # Se a unidade não for válida, raise ValueError
             if potencia == -1:
@@ -103,11 +111,65 @@ def get_acesso_paginas(arquivo, tam_pagina):
     return acesso_paginas, total_paginas, len(unicas)
 
 
-def FIFO(acesso_paginas, num_paginas):
+def formatar_bytes(valor):
+    unidades = list(UNIDADES.keys())
+
+    i = 0
+    while valor >= 1024 and i < len(unidades) - 1:
+        valor /= 1024
+        i += 1
+
+    return f"{valor:.2f} {unidades[i]}"
+
+
+def mostrar_tamanho_tabela(tam_pagina, num_quadros):
+    # Número de páginas virtuais = espaço de endereçamento / tamanho da página
+    # Endereços do arquivo têm 48 bits = 2^48 bytes
+    num_entradas = 2**48 // tam_pagina
+
+    # Bits necessários para indexar todos os quadros físicos
+    bits_por_entrada = math.ceil(math.log2(max(num_quadros, 2)))
+
+    # Arredonda para o menor tipo inteiro que comporta esses bits (1, 2, 4 ou 8 bytes)
+    bytes_por_entrada = 1
+    while bytes_por_entrada * 8 < bits_por_entrada:
+        bytes_por_entrada *= 2
+
+    tamanho_bytes = num_entradas * bytes_por_entrada
+
+    print(f"\nTabela de páginas  : {formatar_bytes(tamanho_bytes)}")
+
+
+def salvar_carregamentos(algoritmo, carregamentos):
+    nome_arquivo = f"carregamentos_{algoritmo.lower()}.json"
+
+    with open(nome_arquivo, "w", encoding="utf-8") as f:
+        json.dump(carregamentos, f, indent=2)
+
+    print(f"Carregamentos/pág  : {nome_arquivo}")
+
+
+def barra_memoria(paginas_mem, num_paginas, algoritmo):
+    ocupados = len(paginas_mem)
+    blocos_cheios = ocupados
+    blocos_vazios = num_paginas - ocupados
+
+    barra = "█" * blocos_cheios + "░" * blocos_vazios
+    paginas_str = ", ".join(str(p) for p in paginas_mem)
+    print(
+        f"  [{barra}] {ocupados:>{len(str(num_paginas))}}/{num_paginas}  [{paginas_str}]"
+    )
+
+
+def FIFO(acesso_paginas, num_paginas, mostrar_barra):
     inicio = time.perf_counter()
 
     paginas_mem = []
     faltas = 0
+    carregamentos = {}  # Requisito 2: conta carregamentos por página
+
+    if mostrar_barra:
+        print(f"\nFIFO: progresso da memória ({num_paginas} quadros)")
 
     for pagina in acesso_paginas:
         # Se a página já estiver na memória, não faz nada
@@ -124,17 +186,28 @@ def FIFO(acesso_paginas, num_paginas):
         # Incrementa uma falta de página uma vez que ela foi buscada na memória
         faltas += 1
 
+        # Requisito 2: incrementa contador de carregamentos da página
+        carregamentos[str(pagina)] = carregamentos.get(str(pagina), 0) + 1
+
+        # Requisito 3: exibe barra de memória (apenas para memórias pequenas)
+        if mostrar_barra:
+            barra_memoria(paginas_mem, num_paginas, "FIFO")
+
     fim = time.perf_counter()
     tempo = fim - inicio
 
-    return faltas, tempo
+    return faltas, tempo, carregamentos
 
 
-def OPT(acesso_paginas, num_paginas):
+def OPT(acesso_paginas, num_paginas, mostrar_barra):
     inicio = time.perf_counter()
 
     paginas_mem = []
     faltas = 0
+    carregamentos = {}
+
+    if mostrar_barra:
+        print(f"\nOPT: progresso da memória ({num_paginas} quadros)")
 
     for i, pagina in enumerate(acesso_paginas):
         # Se a página já estiver na memória, não faz nada
@@ -172,10 +245,17 @@ def OPT(acesso_paginas, num_paginas):
         # Incrementa uma falta de página uma vez que ela foi buscada na memória
         faltas += 1
 
+        # Requisito 2: incrementa contador de carregamentos da página
+        carregamentos[str(pagina)] = carregamentos.get(str(pagina), 0) + 1
+
+        # Requisito 3: exibe barra de memória (apenas para memórias pequenas)
+        if mostrar_barra:
+            barra_memoria(paginas_mem, num_paginas, "OPT")
+
     fim = time.perf_counter()
     tempo = fim - inicio
 
-    return faltas, tempo
+    return faltas, tempo, carregamentos
 
 
 def mostrar_resultado(algoritmo, faltas, tempo, total_paginas, paginas_unicas):
