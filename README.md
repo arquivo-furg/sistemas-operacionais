@@ -9,6 +9,11 @@
 
 - FIFO (First In, First Out)
 
+### Entrada
+
+- Diretório o arquivo;
+- Tamanho da memória e página especificados em TAMANHO [B|KB|GB|TB]. Ex.: 1024 MB.
+
 ## Objetivo
 
 Implementar um programa que calcule o total de faltas de página utilizando dois dos algoritmos vistos em aula:
