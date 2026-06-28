@@ -6,6 +6,7 @@ import math
 import zstandard as zstd
 
 UNIDADES = {"B": 0, "KB": 1, "MB": 2, "GB": 3, "TB": 4}
+MAX_QUADROS_BARRA = 50
 
 
 def main():
@@ -143,7 +144,10 @@ def FIFO(paginas_acessadas, num_quadros):
     faltas = 0
     carregamentos = {}
 
-    print(f"\nFIFO: progresso da memória ({num_quadros} quadros)")
+    mostrar_barra = num_quadros <= MAX_QUADROS_BARRA
+
+    if mostrar_barra:
+        print(f"\nFIFO: progresso da memória ({num_quadros} quadros)")
 
     for pagina in paginas_acessadas:
         # Se a página já estiver na memória, não faz nada
@@ -165,7 +169,11 @@ def FIFO(paginas_acessadas, num_quadros):
         carregamentos[pagina] = carregamentos.get(pagina, 0) + 1
 
         # Exibe barra de memória
-        barra_memoria(paginas_mem, num_quadros)
+        if mostrar_barra:
+            barra_memoria(paginas_mem, num_quadros)
+
+    if mostrar_barra:
+        print()
 
     fim = time.perf_counter()
     tempo = fim - inicio
@@ -180,7 +188,10 @@ def OPT(paginas_acessadas, num_quadros):
     faltas = 0
     carregamentos = {}
 
-    print(f"\nOPT: progresso da memória ({num_quadros} quadros)")
+    mostrar_barra = num_quadros <= MAX_QUADROS_BARRA
+
+    if mostrar_barra:
+        print(f"\nOPT: progresso da memória ({num_quadros} quadros)")
 
     for i, pagina in enumerate(paginas_acessadas):
         # Se a página já estiver na memória, não faz nada
@@ -223,7 +234,11 @@ def OPT(paginas_acessadas, num_quadros):
         carregamentos[pagina] = carregamentos.get(pagina, 0) + 1
 
         # Exibe barra de memória
-        barra_memoria(paginas_mem, num_quadros)
+        if mostrar_barra:
+            barra_memoria(paginas_mem, num_quadros)
+
+    if mostrar_barra:
+        print()
 
     fim = time.perf_counter()
     tempo = fim - inicio
@@ -248,7 +263,7 @@ def mostrar_resultado(algoritmo, faltas, tempo, total_paginas, paginas_unicas):
     # Taxa de eficiência do algoritmo em relação ao número de páginas únicas
     eficiencia = paginas_unicas / faltas if faltas > 0 else 0
 
-    print(f"\n\nAlgoritmo          : {algoritmo}")
+    print(f"\nAlgoritmo          : {algoritmo}")
     print(f"Faltas de página   : {faltas}")
     print(f"Acertos            : {acertos}")
     print(f"Taxa de acerto     : {taxa_acerto:.2%}")  # Acessos sem falta
