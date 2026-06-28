@@ -105,18 +105,18 @@ def formatar_bytes(valor):
 
 
 def get_paginas_acessadas(arquivo, tam_pagina):
-    num_enderecos = 0
-    enderecos_unicos = set()
     paginas_acessadas = []
     paginas_unicas = set()
 
     with open(arquivo, "rb") as fh:
         dctx = zstd.ZstdDecompressor(max_window_size=2147483648)
+
         with dctx.stream_reader(fh) as reader:
             text_stream = io.TextIOWrapper(reader, encoding="utf-8")
+
             for linha in text_stream:
-                # Convete a linha de endereço hexadecimal para os bytes correspondentes
-                endereco = int(linha.strip(), 16)
+                # Converte a linha de endereço hexadecimal para inteiro
+                endereco = int(linha, 16)
 
                 # Calcula o número da página a partir do endereço
                 num_pagina = endereco // tam_pagina
@@ -124,18 +124,13 @@ def get_paginas_acessadas(arquivo, tam_pagina):
                 # Adiciona o número da página à lista de acessos
                 paginas_acessadas.append(num_pagina)
 
-                # Incrementa o contador de endereços processados
-                num_enderecos += 1
-
-                # Conta o número de acessos únicos por endereço e por página
-                enderecos_unicos.add(endereco)
+                # Registra as páginas distintas acessadas
                 paginas_unicas.add(num_pagina)
 
     # Calcula o total de páginas acessadas
     total_acessos = len(paginas_acessadas)
 
-    print(f"\nTotal de endereços : {num_enderecos}")
-    print(f"Endereços únicos   : {len(enderecos_unicos)}")
+    print(f"\nTotal de endereços : {total_acessos}")
     print(f"Páginas únicas     : {len(paginas_unicas)}")
 
     return paginas_acessadas, total_acessos, len(paginas_unicas)
